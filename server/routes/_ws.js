@@ -10,8 +10,8 @@ const gameState = {
     ],
 };
 
-// Keep track of all connected clients
-const clients = new Set();
+// Track clients with a Map instead of Set for better debugging
+const clients = new Map();
 
 function broadcastGameState() {
     const message = JSON.stringify({
@@ -19,17 +19,19 @@ function broadcastGameState() {
         payload: gameState,
     });
 
-    // Broadcast to ALL connected clients
-    for (const client of clients) {
+    // Log before broadcast
+    clients.forEach((client, id) => {
         client.send(message);
-    }
+    });
 }
+
 export default defineWebSocketHandler({
     open(peer) {
-        console.log('[WebSocket] New connection:');
-        // Add new client to our set
-        clients.add(peer);
-        // Send the current game state to the new client
+        const peerId = Math.random().toString(36).substring(7);
+
+        clients.set(peerId, peer);
+
+        // Send initial state
         peer.send(
             JSON.stringify({
                 type: 'GAME_STATE',
@@ -50,30 +52,24 @@ export default defineWebSocketHandler({
                         territory.owner = data.playerNickname;
                         broadcastGameState();
                     } else {
-                        peer.send(JSON.stringify({
-                            type: 'ERROR',
-                            payload: 'Territory already claimed or not found',
-                        }));
+                        peer.send(
+                            JSON.stringify({
+                                type: 'ERROR',
+                                payload: 'Territory already claimed or not found',
+                            })
+                        );
                     }
                     break;
+
                 case 'RESET_GAME':
-                    // Reset all territories to unclaimed
                     gameState.territories.forEach((territory) => {
                         territory.owner = null;
                     });
-
-                    // Broadcast the updated game state
                     broadcastGameState();
                     break;
-
-                // Add future actions here, e.g., chat messages, moves, etc.
-                // Ensure every action that modifies the game state calls `broadcastGameState`.
-
-                default:
-                    console.warn('[WebSocket] Unknown message type:', data.type);
             }
         } catch (error) {
-            console.error('[WebSocket] Error parsing message:', error);
+            console.error('[WebSocket] Error:', error);
             peer.send(
                 JSON.stringify({
                     type: 'ERROR',
@@ -84,7 +80,11 @@ export default defineWebSocketHandler({
     },
 
     close(peer) {
-        clients.delete(peer);
-        console.log('[WebSocket] Connection closed:');
+        // Find and remove the disconnected client
+        clients.forEach((client, id) => {
+            if (client === peer) {
+                clients.delete(id);
+            }
+        });
     },
 });

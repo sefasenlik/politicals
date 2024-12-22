@@ -41,8 +41,11 @@ export function useGame() {
     const connect = () => {
         if (!process.client) return;
 
-        const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws`;
-        ws = new WebSocket(url);
+        const wsUrl = process.env.NODE_ENV === 'production'
+            ? 'https://politicals-ws.bkorhanozdemir.workers.dev'
+            : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/_ws`;
+        
+        ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
             console.log('[WebSocket] Connected');
