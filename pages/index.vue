@@ -1,29 +1,40 @@
-<!-- pages/index.vue -->
 <template>
   <div>
-    <NicknameEntry v-if="!playerNickname" @nicknamechosen="startGame" />
-    <GameBoard v-else />
+    <WelcomeScreen
+        v-if="!currentRoom"
+        @roomJoined="handleRoomJoined"
+        @roomCreated="handleRoomCreated"
+    />
+    <GameBoard
+        v-else
+        :room-key="currentRoom"
+    />
   </div>
+  <NicknameModal
+      v-model:isOpen="gameInstance.isNicknameModalOpen.value"
+      :initial-nickname="gameInstance.playerNickname?.value"
+      @save="gameInstance.setNickname"
+  />
 </template>
 
 <script setup>
-const playerNickname = ref(null)
+const currentRoom = ref(null);
+import { provide } from 'vue';
 
-const startGame = (nickname) => {
-  playerNickname.value = nickname
-  // Store in localStorage for persistence
-  if (process.client) {
-    localStorage.setItem('playerNickname', nickname)
-  }
+const gameInstance = useGame(); // Create single instance
+provide('game', gameInstance);  // Provide it to components
+function handleRoomJoined(roomKey) {
+  currentRoom.value = roomKey;
 }
 
-// Check for existing nickname on mount
-onMounted(() => {
-  if (process.client) {
-    const savedNickname = localStorage.getItem('playerNickname')
-    if (savedNickname) {
-      playerNickname.value = savedNickname
-    }
+function handleRoomCreated(roomKey) {
+  currentRoom.value = roomKey;
+}
+
+function handleNicknameChosen(nickname) {
+  if (import.meta.client) {
+    localStorage.setItem('playerNickname', nickname);
+    gameInstance.connect(currentRoom.value);
   }
-})
+}
 </script>
