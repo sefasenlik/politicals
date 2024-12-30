@@ -185,6 +185,6 @@ const handleChangeNickname = () => {
 
 const handleSaveNickname = (newNickname) => {
   playerNickname.value = newNickname
-  // Add any other logic you need when nickname is saved
+  localStorage.setItem('playerNickname', newNickname)
 }
 </script>
