@@ -21,6 +21,22 @@
             </div>
           </div>
           <button
+            @click="handleChangeNickname"
+            class="w-full py-3 bg-gray-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            :disabled="!playerNickname"
+            v-if="playerNickname"
+          >
+            Change Nickname
+          </button>
+
+          <!-- Update the modal component -->
+          <NicknameModal
+            v-model:isOpen="isModalOpen"
+            :initial-nickname="playerNickname"
+            @save="handleSaveNickname"
+          />
+
+          <button
               @click="handleHostGame"
               class="w-full py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               :disabled="!playerNickname"
@@ -107,6 +123,8 @@
 
 <script setup>
 import { inject } from 'vue';
+import { ref } from 'vue'
+import NicknameModal from './NicknameModal.vue'
 
 const {
   connect,
@@ -157,5 +175,16 @@ async function handleJoinGame() {
   } catch (err) {
     localError.value = err; // Show error to user
   }
+}
+
+const isModalOpen = ref(false)
+
+const handleChangeNickname = () => {
+  isModalOpen.value = true
+}
+
+const handleSaveNickname = (newNickname) => {
+  playerNickname.value = newNickname
+  // Add any other logic you need when nickname is saved
 }
 </script>
