@@ -22,6 +22,7 @@ export function useGame() {
     const playerNickname = ref(null);
     const nicknameError = ref(null);
     const isNicknameModalOpen = ref(false);
+    const messages = ref([]);
     
     let ws = null;
     
@@ -60,6 +61,7 @@ export function useGame() {
             localStorage.removeItem('playerNickname');
         }
     };
+
     // Load stored nickname
     if (import.meta.client) {
         const storedNickname = localStorage.getItem('playerNickname');
@@ -73,6 +75,7 @@ export function useGame() {
             }
         }
     }
+
     // WebSocket setup
     const connect = () => {
         if (!import.meta.client || connectionStatus.value === 'connecting') return;
@@ -181,6 +184,7 @@ export function useGame() {
             ws.send(JSON.stringify(joinMessage));
         });
     };
+
     // Message handling
     const handleWebSocketMessage = (event) => {
         try {
@@ -190,6 +194,10 @@ export function useGame() {
             switch (message.type) {
                 case 'GAME_STATE':
                     gameState.value = message.payload;
+                    break;
+
+                case 'CHAT_MESSAGE':
+                    messages.value.push(message.payload);
                     break;
 
                 case 'ERROR':
@@ -247,6 +255,21 @@ export function useGame() {
         }));
     };
 
+    // Add new method for sending chat messages
+    const sendChatMessage = (text) => {
+        if (!ws || connectionStatus.value !== 'connected') return;
+
+        ws.send(JSON.stringify({
+            type: 'CHAT_MESSAGE',
+            payload: {
+                roomKey: gameState.value.room.id,
+                sender: playerNickname.value,
+                text: text,
+                timestamp: new Date().toISOString()
+            }
+        }));
+    };
+
     return {
         // State
         connectionStatus,
@@ -254,6 +277,7 @@ export function useGame() {
         gameState,
         playerNickname,
         nicknameError,
+        messages,
         
         // Actions
         connect,
@@ -267,6 +291,7 @@ export function useGame() {
         setNickname,
         clearNickname,
         openNicknameModal,
-        isNicknameModalOpen
+        isNicknameModalOpen,
+        sendChatMessage
     };
 }

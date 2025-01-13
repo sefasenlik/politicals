@@ -1,14 +1,17 @@
 <!-- components/GameBoard.vue -->
 <template>
-  <div class="relative min-h-screen bg-gray-100">
+  <div class="relative min-h-screen bg-gray-100" @click.self="closeChat">
     <!-- Main game content with padding for lobby -->
     <div class="p-8 pr-72">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto" @click.self="closeChat">
         <!-- Header with room info -->
         <div class="flex justify-between items-center mb-8">
           <h1 class="text-3xl font-bold text-gray-800">Political Game Board</h1>
-          <div class="text-gray-600">
-            Room: <span class="font-semibold">{{ roomKey }}</span>
+          
+          <div class="flex items-center gap-4">            
+            <div class="text-gray-600">
+              Room: <span class="font-semibold">{{ roomKey }}</span>
+            </div>
           </div>
         </div>
 
@@ -53,7 +56,7 @@
     </div>
 
     <!-- Fixed Lobby Sidebar -->
-    <div class="fixed top-0 right-0 h-screen w-64 bg-white shadow-lg">
+    <div class="fixed top-0 right-0 h-screen w-64 bg-white shadow-lg z-20">
       <div class="p-4 space-y-4">
         <!-- Room Status -->
         <div class="text-center pb-4 border-b">
@@ -87,7 +90,16 @@
              </span>
             </li>
           </ul>
-        </div>
+        </div>  
+         
+        <button
+          @click.stop="toggleChat"
+          class="w-full py-2 bg-gray-500 text-white rounded-lg 
+                  hover:bg-gray-600 transition-colors duration-200 focus:outline-none 
+                  focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+        >
+          <span>{{ isChatOpen ? '🗪 Close Chat' : '🗪 Open Chat' }}</span>
+        </button> 
 
         <!-- Game Actions -->
         <div v-if="gameState.room.status === 'waiting'" class="space-y-2">
@@ -121,6 +133,26 @@
         </div>
       </div>
     </div>
+      
+    <!-- Chat Panel -->
+    <div 
+      :class="[
+        'fixed top-0 right-64 h-screen w-120 bg-white shadow-lg transform transition-transform duration-300 z-10',
+        isChatOpen ? 'translate-x-0' : 'translate-x-full'
+      ]"
+    >
+      <div class="p-4">
+        <h3 class="text-xl font-semibold mb-4">Game Chat</h3>
+
+        <!-- Chat Component -->
+        <GameChat 
+          :player-nickname="playerNickname"
+          :room-key="roomKey"
+          :messages="messages"
+          @send-message="sendMessage"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -140,8 +172,18 @@ const {
   claimTerritory,
   resetGame,
   setPlayerReady,
-  startGame
+  startGame,
+  messages,
+  sendChatMessage
 } = inject('game');
+
+// Chat state
+const isChatOpen = ref(false);
+
+// Chat handler
+const sendMessage = (text) => {
+  sendChatMessage(text);
+};
 
 // Computed properties
 const isPlayerReady = computed(() => {
@@ -179,6 +221,16 @@ function toggleReady() {
 function onStartGame() {
   if (canStartGame.value) {
     startGame();
+  }
+}
+
+function toggleChat() {
+  isChatOpen.value = !isChatOpen.value;
+}
+
+function closeChat() {
+  if (isChatOpen.value) {
+    isChatOpen.value = false;
   }
 }
 </script>
