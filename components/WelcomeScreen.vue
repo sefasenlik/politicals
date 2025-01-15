@@ -13,8 +13,7 @@
               </span>
               <button
                   @click="openNicknameModal"
-                  class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                  v-if="!playerNickname"
+                  class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
               >
                 {{ playerNickname ? 'Change Nickname' : 'Set Nickname' }}
               </button>

@@ -1,4 +1,6 @@
 // server/routes/_ws.js
+import { generateAIResponse } from '../ai-chat.js';
+
 const rooms = {} // Store our rooms
 const clients = {}  // Store client -> room mapping
 const clientIds = new WeakMap(); // Store client IDs
@@ -97,13 +99,82 @@ export default defineWebSocketHandler({
         console.log('[WebSocket] Client connected:', clientIds.get(peer));
     },
 
-    message(peer, message) {
+    async message(peer, message) {
         try {
             const data = JSON.parse(message.text());
             const clientId = clientIds.get(peer);
             console.log('[WebSocket] Received from', clientId, ':', data);
 
             switch (data.type) {
+                case 'CHAT_MESSAGE': {
+                    const roomId = clients[clientId]?.room;
+                    const room = rooms[roomId];
+                    if (!room) return;
+
+                    // Verify the sender is in the room
+                    const player = room.room.players[data.payload.sender];
+                    if (!player || player.clientId !== clientId) {
+                        return;
+                    }
+
+                    // Broadcast chat message to all clients in the room
+                    const messageStr = JSON.stringify({
+                        type: 'CHAT_MESSAGE',
+                        payload: {
+                            roomKey: roomId,
+                            sender: data.payload.sender,
+                            text: data.payload.text,
+                            timestamp: data.payload.timestamp
+                        }
+                    });
+
+                    for (const [clientId, clientData] of Object.entries(clients)) {
+                        if (clientData.room === roomId) {
+                            try {
+                                clientData.socket.send(messageStr);
+                            } catch (error) {
+                                console.error('[WebSocket] Failed to send chat message to client:', error);
+                                removeClientFromRoom(clientData.socket, roomId);
+                            }
+                        }
+                    }
+
+                    // TEST - START
+
+                    // Generate and send AI response
+                    try {
+                        const aiResponse = await generateAIResponse(data.payload.text);
+                        if (aiResponse) {
+                            const aiMessageStr = JSON.stringify({
+                                type: 'CHAT_MESSAGE',
+                                payload: {
+                                    roomKey: roomId,
+                                    sender: "AI",
+                                    text: aiResponse,
+                                    timestamp: Date.now()
+                                }
+                            });
+
+                            for (const [clientId, clientData] of Object.entries(clients)) {
+                                if (clientData.room === roomId) {
+                                    try {
+                                        clientData.socket.send(aiMessageStr);
+                                    } catch (error) {
+                                        console.error('[WebSocket] Failed to send AI message to client:', error);
+                                        removeClientFromRoom(clientData.socket, roomId);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[WebSocket] Error generating AI response:', error);
+                    }
+
+                    // TEST - END
+
+                    break;
+                }
+                
                 case 'CREATE_ROOM': {
                     console.log('Server received CREATE_ROOM request:', data);  // Log the received data
 
