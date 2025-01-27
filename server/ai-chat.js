@@ -12,7 +12,7 @@ export async function generateAIResponse(message) {
             messages: [
                 { 
                     "role": "system", 
-                    "content": "You are a friendly game companion. Keep responses concise and playful. Limit responses to 1-2 sentences."
+                    "content": "You are a rephrasing system. Take the input and re-write it with a more standard language. Make the input sound like it is written by AI."
                 },
                 { 
                     "role": "user", 

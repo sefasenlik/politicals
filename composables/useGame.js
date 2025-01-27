@@ -10,14 +10,7 @@ export function useGame() {
             id: null,
             status: 'waiting', // 'waiting' | 'playing'
             players: {}
-        },
-        territories: [
-            { id: 't1', owner: null },
-            { id: 't2', owner: null },
-            { id: 't3', owner: null },
-            { id: 't4', owner: null },
-            { id: 't5', owner: null }
-        ]
+        }
     });
     const playerNickname = ref(null);
     const nicknameError = ref(null);
@@ -235,23 +228,16 @@ export function useGame() {
             playerNickname: playerNickname.value,
             roomId: gameState.value.room.id
         }));
-    };
 
-    const claimTerritory = (territoryId) => {
-        if (!ws || connectionStatus.value !== 'connected') return;
-
+        text = "The game has commenced. Convince the captain to pick you."
         ws.send(JSON.stringify({
-            type: 'CLAIM_TERRITORY',
-            territoryId,
-            playerNickname: playerNickname.value
-        }));
-    };
-
-    const resetGame = () => {
-        if (!ws || connectionStatus.value !== 'connected') return;
-
-        ws.send(JSON.stringify({
-            type: 'RESET_GAME'
+            type: 'CHAT_MESSAGE',
+            payload: {
+                roomKey: gameState.value.room.id,
+                sender: "System",
+                text: text,
+                timestamp: new Date().toISOString()
+            }
         }));
     };
 
@@ -285,8 +271,6 @@ export function useGame() {
         joinRoom,
         setPlayerReady,
         startGame,
-        claimTerritory,
-        resetGame,
         disconnect,
         setNickname,
         clearNickname,

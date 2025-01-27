@@ -4,6 +4,7 @@ import { generateAIResponse } from '../ai-chat.js';
 const rooms = {} // Store our rooms
 const clients = {}  // Store client -> room mapping
 const clientIds = new WeakMap(); // Store client IDs
+const TRANSLATION_COUNTDOWN = 30000; // 30 seconds
 
 function generateClientId() {
     return Math.random().toString(36).substring(7);
@@ -21,16 +22,78 @@ function createRoom(roomId) {
             status: 'waiting',
             players: {}
         },
-        territories: [
-            { id: 't1', owner: null },
-            { id: 't2', owner: null },
-            { id: 't3', owner: null },
-            { id: 't4', owner: null },
-            { id: 't5', owner: null },
-        ]
+        pendingMessages: {}, // Track messages from each player
+        translationTimer: null,
+        translationCountdown: 0
     };
 
     return true;
+}
+
+function startTranslationCountdown(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    // Clear any existing timer
+    if (room.translationTimer) {
+        clearTimeout(room.translationTimer);
+    }
+
+    // Start a new countdown timer
+    room.translationTimer = setTimeout(async () => {
+        await processPendingMessages(roomId);
+    }, TRANSLATION_COUNTDOWN);
+
+    // Broadcast countdown to all clients
+    broadcastToRoom(roomId, {
+        type: 'TRANSLATION_COUNTDOWN',
+        payload: {
+            countdown: TRANSLATION_COUNTDOWN / 1000, // convert to seconds
+            roomKey: roomId
+        }
+    });
+}
+
+// Add helper to process all pending messages
+async function processPendingMessages(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    // Combine all messages
+    const allMessages = Object.values(room.pendingMessages).join('\n');
+    
+    try {
+        // const aiResponse = await generateAIResponse(allMessages);
+        const aiResponse = allMessages;
+        if (aiResponse) {
+            const aiMessageStr = JSON.stringify({
+                type: 'CHAT_MESSAGE',
+                payload: {
+                    roomKey: roomId,
+                    sender: "AI Translation",
+                    text: aiResponse,
+                    timestamp: Date.now()
+                }
+            });
+
+            // Broadcast AI response to all clients in the room
+            for (const [clientId, clientData] of Object.entries(clients)) {
+                if (clientData.room === roomId) {
+                    try {
+                        clientData.socket.send(aiMessageStr);
+                    } catch (error) {
+                        console.error('[WebSocket] Failed to send AI message to client:', error);
+                        removeClientFromRoom(clientData.socket, roomId);
+                    }
+                }
+            }
+        }
+        
+        // Clear pending messages after processing
+        room.pendingMessages = {};
+    } catch (error) {
+        console.error('[WebSocket] Error generating AI response:', error);
+    }
 }
 
 // Broadcast to all clients in a room
@@ -117,6 +180,9 @@ export default defineWebSocketHandler({
                         return;
                     }
 
+                    // Store the message for this player
+                    room.pendingMessages[data.payload.sender] = data.payload.text;
+
                     // Broadcast chat message to all clients in the room
                     const messageStr = JSON.stringify({
                         type: 'CHAT_MESSAGE',
@@ -138,39 +204,6 @@ export default defineWebSocketHandler({
                             }
                         }
                     }
-
-                    // TEST - START
-
-                    // Generate and send AI response
-                    try {
-                        const aiResponse = await generateAIResponse(data.payload.text);
-                        if (aiResponse) {
-                            const aiMessageStr = JSON.stringify({
-                                type: 'CHAT_MESSAGE',
-                                payload: {
-                                    roomKey: roomId,
-                                    sender: "AI",
-                                    text: aiResponse,
-                                    timestamp: Date.now()
-                                }
-                            });
-
-                            for (const [clientId, clientData] of Object.entries(clients)) {
-                                if (clientData.room === roomId) {
-                                    try {
-                                        clientData.socket.send(aiMessageStr);
-                                    } catch (error) {
-                                        console.error('[WebSocket] Failed to send AI message to client:', error);
-                                        removeClientFromRoom(clientData.socket, roomId);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.error('[WebSocket] Error generating AI response:', error);
-                    }
-
-                    // TEST - END
 
                     break;
                 }
@@ -308,35 +341,10 @@ export default defineWebSocketHandler({
                             payload: room
                         });
                     }
-                    break;
-                }
 
-                case 'CLAIM_TERRITORY': {
-                    const roomId = clients[clientId]?.room;
-                    const room = rooms[roomId];
-                    if (!room || room.room.status !== 'playing') return;
+                    // Start translation countdown
+                    startTranslationCountdown(roomId);
 
-                    const territory = room.territories.find(t => t.id === data.territoryId);
-                    if (territory && !territory.owner) {
-                        territory.owner = data.playerNickname;
-                        broadcastToRoom(roomId, {
-                            type: 'GAME_STATE',
-                            payload: room
-                        });
-                    }
-                    break;
-                }
-
-                case 'RESET_GAME': {
-                    const roomId = clients[clientId]?.room;
-                    const room = rooms[roomId];
-                    if (!room) return;
-
-                    room.territories.forEach(t => t.owner = null);
-                    broadcastToRoom(roomId, {
-                        type: 'GAME_STATE',
-                        payload: room
-                    });
                     break;
                 }
             }

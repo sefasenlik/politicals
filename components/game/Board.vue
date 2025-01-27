@@ -1,12 +1,19 @@
 <!-- components/GameBoard.vue -->
 <template>
-  <div class="relative min-h-screen bg-gray-100" @click.self="closeChat">
+  <div class="relative min-h-screen bg-gray-100">
+    <!-- Translation Countdown Timer -->
+    <div v-if="gameState.room.status === 'playing'" 
+         class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
+                bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg">
+      Round change in {{ translationCountdown }} seconds...
+    </div>
+
     <!-- Main game content with padding for lobby -->
     <div class="p-8 pr-72">
-      <div class="max-w-4xl mx-auto" @click.self="closeChat">
+      <div class="max-w-4xl mx-auto">
         <!-- Header with room info -->
         <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold text-gray-800">Political Game Board</h1>
+          <h1 class="text-3xl font-bold text-gray-800">Spaceship Escape</h1>
           
           <div class="flex items-center gap-4">            
             <div class="text-gray-600">
@@ -14,43 +21,18 @@
             </div>
           </div>
         </div>
-
-        <!-- Game board grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div v-for="territory in gameState.territories"
-               :key="territory.id"
-               class="relative">
-            <button
-                @click="onClaim(territory.id)"
-                :disabled="gameState.room.status === 'waiting' || territory.owner"
-                class="w-full p-4 rounded-lg shadow-md transition-all duration-200 border"
-                :class="[
-                 territory.owner 
-                   ? `bg-blue-100 border-blue-300 ${territory.owner === playerNickname ? 'ring-2 ring-blue-500' : ''}` 
-                   : 'bg-white hover:bg-gray-50 border-gray-200 hover:border-blue-300'
-               ]"
-            >
-              <div class="font-semibold text-lg mb-1">
-                Territory {{ territory.id }}
-              </div>
-              <div class="text-sm"
-                   :class="territory.owner ? 'text-blue-600 font-medium' : 'text-gray-500'">
-                {{ territory.owner ? `Claimed by ${territory.owner}` : 'Unclaimed' }}
-              </div>
-            </button>
+      
+        <!-- Chat Panel -->
+        <div v-if="gameState.room.status === 'playing'" class="flex justify-between items-center">
+          <div class="p-4 w-full">
+            <!-- Chat Component -->
+            <GameChat 
+              :player-nickname="playerNickname"
+              :room-key="roomKey"
+              :messages="messages"
+              @send-message="sendMessage"
+            />
           </div>
-        </div>
-
-        <!-- Game Actions -->
-        <div v-if="gameState.room.status === 'playing'" class="flex justify-center">
-          <button
-              @click="onResetGame"
-              class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg
-                    shadow-md transition-all duration-200 font-medium
-                    focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-          >
-            Reset Game
-          </button>
         </div>
       </div>
     </div>
@@ -90,16 +72,7 @@
              </span>
             </li>
           </ul>
-        </div>  
-         
-        <button
-          @click.stop="toggleChat"
-          class="w-full py-2 bg-gray-500 text-white rounded-lg 
-                  hover:bg-gray-600 transition-colors duration-200 focus:outline-none 
-                  focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-        >
-          <span>{{ isChatOpen ? '🗪 Close Chat' : '🗪 Open Chat' }}</span>
-        </button> 
+        </div>   
 
         <!-- Game Actions -->
         <div v-if="gameState.room.status === 'waiting'" class="space-y-2">
@@ -133,31 +106,11 @@
         </div>
       </div>
     </div>
-      
-    <!-- Chat Panel -->
-    <div 
-      :class="[
-        'fixed top-0 right-64 h-screen w-120 bg-white shadow-lg transform transition-transform duration-300 z-10',
-        isChatOpen ? 'translate-x-0' : 'translate-x-full'
-      ]"
-    >
-      <div class="p-4">
-        <h3 class="text-xl font-semibold mb-4">Game Chat</h3>
-
-        <!-- Chat Component -->
-        <GameChat 
-          :player-nickname="playerNickname"
-          :room-key="roomKey"
-          :messages="messages"
-          @send-message="sendMessage"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { inject } from 'vue';
+import { ref, computed, watch } from 'vue';
 
 const props = defineProps({
   roomKey: {
@@ -169,16 +122,40 @@ const props = defineProps({
 const {
   gameState,
   playerNickname,
-  claimTerritory,
-  resetGame,
   setPlayerReady,
   startGame,
   messages,
   sendChatMessage
 } = inject('game');
 
-// Chat state
-const isChatOpen = ref(false);
+// Add a ref for the countdown
+const translationCountdown = ref(30);
+const countdownTimer = ref(null);
+
+// Watch for game status change to start the countdown
+watch(() => gameState.value.room.status, (newStatus) => {
+  if (newStatus === 'playing') {
+    // Reset countdown to 30 seconds
+    translationCountdown.value = 30;
+    
+    // Start countdown timer
+    countdownTimer.value = setInterval(() => {
+      translationCountdown.value--;
+      
+      // Stop timer when countdown reaches 0
+      if (translationCountdown.value <= 0) {
+        clearInterval(countdownTimer.value);
+      }
+    }, 1000);
+  }
+});
+
+// Optional: Clear interval if component is unmounted
+onUnmounted(() => {
+  if (countdownTimer.value) {
+    clearInterval(countdownTimer.value);
+  }
+});
 
 // Chat handler
 const sendMessage = (text) => {
@@ -203,17 +180,6 @@ function isHost(nickname) {
   return players[0] === nickname;
 }
 
-// Actions
-function onClaim(territoryId) {
-  if (gameState.value.room.status === 'playing') {
-    claimTerritory(territoryId);
-  }
-}
-
-function onResetGame() {
-  resetGame();
-}
-
 function toggleReady() {
   setPlayerReady(!isPlayerReady.value);
 }
@@ -221,16 +187,6 @@ function toggleReady() {
 function onStartGame() {
   if (canStartGame.value) {
     startGame();
-  }
-}
-
-function toggleChat() {
-  isChatOpen.value = !isChatOpen.value;
-}
-
-function closeChat() {
-  if (isChatOpen.value) {
-    isChatOpen.value = false;
   }
 }
 </script>

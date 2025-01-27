@@ -1,6 +1,6 @@
 <!-- components/GameChat.vue -->
 <template>
-    <div class="h-[600px] flex flex-col bg-white rounded-lg shadow-md">
+    <div class="h-[80vh] flex flex-col bg-white rounded-lg shadow-md">
       <!-- Chat Messages Area -->
       <div class="flex-1 p-4 overflow-y-auto" ref="chatContainer">
         <div v-for="(message, index) in messages" 
@@ -49,7 +49,7 @@
   </template>
   
   <script setup>
-  import { ref, onMounted, watch } from 'vue';
+  import { ref, watch } from 'vue';
   
   const props = defineProps({
     playerNickname: {
