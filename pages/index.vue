@@ -23,6 +23,7 @@ import { provide } from 'vue';
 
 const gameInstance = useGame(); // Create single instance
 provide('game', gameInstance);  // Provide it to components
+
 function handleRoomJoined(roomKey) {
   currentRoom.value = roomKey;
 }
