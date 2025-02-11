@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-    apiKey: "",
+    apiKey: "PLEASE_DONATE",
 });
 
 export async function generateAIResponse(message) {
@@ -12,7 +12,7 @@ export async function generateAIResponse(message) {
             messages: [
                 { 
                     "role": "system", 
-                    "content": "You are a rephrasing system. Take the input and re-write it with a more standard language. Make the input sound like it is written by AI."
+                    "content": "You are a rephrasing system. Take the input and re-write it with a more standard language. Make the input sound like it is written by AI. Return the response in the input JSON format."
                 },
                 { 
                     "role": "user", 

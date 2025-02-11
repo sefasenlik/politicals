@@ -5,6 +5,8 @@ const rooms = {} // Store our rooms
 const clients = {}  // Store client -> room mapping
 const clientIds = new WeakMap(); // Store client IDs
 const TRANSLATION_COUNTDOWN = 10000; // 10 seconds
+const QUESTION_COUNTDOWN = 20000; // 20 seconds
+const ANSWER_COUNTDOWN = 30000; // 30 seconds
 
 function generateClientId() {
     return Math.random().toString(36).substring(7);
@@ -83,37 +85,64 @@ async function processPendingMessages(roomId) {
     }
 
     try {
-        // If there are pending messages, process them
-        if (Object.keys(room.pendingMessages).length > 0) {
-            const allMessages = Object.values(room.pendingMessages).join('\n');
-            // const aiResponse = await generateAIResponse(allMessages);
-            const aiResponse = allMessages;
-            
-            if (aiResponse) {
-                const aiMessageStr = JSON.stringify({
-                    type: 'CHAT_MESSAGE',
-                    payload: {
-                        roomKey: roomId,
-                        sender: "AI Translation",
-                        text: aiResponse,
-                        timestamp: Date.now(),
-                        isPrivate: false
-                    }
-                });
+        // Format messages for all players, including those who didn't send a message
+        const playersMessages = Object.entries(room.room.players).map(([nickname, player]) => {
+            // Skip the host (first player)
+            if (nickname === Object.keys(room.room.players)[0]) {
+                return null;
+            }
 
-                // Broadcast AI response to all clients
-                for (const [clientId, clientData] of Object.entries(clients)) {
-                    if (clientData.room === roomId) {
-                        try {
-                            clientData.socket.send(aiMessageStr);
-                        } catch (error) {
-                            console.error('[WebSocket] Failed to send AI message to client:', error);
-                            removeClientFromRoom(clientData.socket, roomId);
-                        }
+            return {
+                clientID: player.clientId,
+                message: room.pendingMessages[nickname] || "NO_MESSAGE_SENT"
+            };
+        }).filter(Boolean); // Remove null entries (host)
+
+        // Prepare the message object for AI
+        const messageObject = {
+            players: playersMessages
+        };
+
+        // Send to AI for translation
+        const aiResponse = await generateAIResponse(JSON.stringify(messageObject));
+        
+        if (aiResponse) {
+            // Parse the AI response back from JSON
+            const parsedResponse = JSON.parse(aiResponse);
+            
+            // Transform into user-friendly format
+            const formattedResponse = parsedResponse.players
+                .map((player, index) => {
+                    const message = player.message === "NO_MESSAGE_SENT" 
+                        ? "Did not send a message" 
+                        : player.message;
+                    return `Passenger ${index + 1}: "${message}"`;
+                })
+                .join('\n');
+
+            const aiMessageStr = JSON.stringify({
+                type: 'CHAT_MESSAGE',
+                payload: {
+                    roomKey: roomId,
+                    sender: "AI Translation",
+                    text: formattedResponse,
+                    timestamp: Date.now(),
+                    isPrivate: false
+                }
+            });
+
+            // Broadcast AI response to all clients
+            for (const [clientId, clientData] of Object.entries(clients)) {
+                if (clientData.room === roomId) {
+                    try {
+                        clientData.socket.send(aiMessageStr);
+                    } catch (error) {
+                        console.error('[WebSocket] Failed to send AI message to client:', error);
+                        removeClientFromRoom(clientData.socket, roomId);
                     }
                 }
             }
-        }
+        }     
 
         // Clear pending messages
         room.pendingMessages = {};
@@ -182,7 +211,7 @@ function removeClientFromRoom(client, roomId) {
     }
 
     delete clients[clientId];
-    // Don't need to delete from clientIds as it's a WeakMap
+    // No need to delete from clientIds as it's a WeakMap
 
     // Cleanup empty room
     if (Object.keys(room.room.players).length === 0) {
@@ -418,7 +447,7 @@ export default defineWebSocketHandler({
                         payload: {
                             roomKey: roomId,
                             sender: "System",
-                            text: "The game has commenced. Convince the captain to pick you.",
+                            text: "The game has commenced. Captain will ask questions to determine which pod holds the android. Don't get left behind.",
                             timestamp: Date.now(),
                             isPrivate: false
                         }

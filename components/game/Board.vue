@@ -21,7 +21,7 @@
       <div class="max-w-4xl mx-auto">
         <!-- Header with room info -->
         <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold text-green-400">Spaceship Escape</h1>
+          <h1 class="text-3xl font-bold text-green-400">Spacecape</h1>
           
           <div class="flex items-center gap-4">            
             <div class="text-blue-400 relative z-10">
@@ -194,8 +194,8 @@ const canStartGame = computed(() => {
 // Helper functions
 function isHost(nickname) {
   // First player in the room is the host
-  const players = Object.keys(gameState.value.room.players);
-  return players[0] === nickname;
+  const [host] = Object.keys(gameState.value.room.players);
+  return host === nickname;
 }
 
 // Move the computed property below the isHost function

@@ -1,8 +1,28 @@
 <!-- components/GameChat.vue -->
 <template>
     <div class="h-[80vh] flex flex-col bg-gray-900/95 rounded-lg shadow-md border border-blue-900 relative z-10">
+  
       <!-- Chat Messages Area -->
       <div class="flex-1 p-4 overflow-y-auto" ref="chatContainer">
+        <!-- Story Introduction -->
+        <div class="mb-4 p-4 border rounded-lg border-blue-900 bg-gray-800/50">
+          <p class="text-gray-400 text-sm whitespace-pre-line">
+            <b class="text-yellow-700">13.05.2998 – 03:23 AM</b><br>
+            <i class="text-yellow-700">Somewhere between the galaxies of Shenlooq and Ossdemar</i>
+
+            <br><br>You are passenger GДß3424/05 aboard LITRAVEL Flight RØШ79003. A few hours ago, you were partying with other passengers. Now, you're jolted awake by violent tremors and a blaring alarm.
+
+            <br><br>The ship's reactor has failed. In <b><i>15 minutes</i></b>, it will explode. Through flames and chaos, you manage to reach an escape pod. As you strap in, the pod's communication system crackles to life. This system, though rather primitive, can translate 8594 languages from 72 galaxies.
+
+            <br><br>The captain's voice echoes through the pod speakers:
+            <i>"We don't have enough fuel. One pod must be left behind."</i>
+
+            <br><br>But there's more—an android has boarded one of the pods, disguising itself as a passenger. The captain will abandon that pod… if he can figure out which one it is.
+
+            <br><br>You must convince the captain which pod holds the android—before time runs out...
+          </p>
+        </div>
+
         <div v-for="(message, index) in visibleMessages" 
              :key="index"
              class="mb-4"
@@ -43,13 +63,10 @@
 
           <!-- Send button -->
           <button
-            class="px-6 py-2 bg-blue-700 text-blue-100 rounded-lg hover:bg-blue-600 
-                  transition-colors duration-200 focus:outline-none focus:ring-2 
-                  focus:ring-blue-500 focus:ring-offset-2 border border-blue-500
-                  relative z-10"
+            class="px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 border border-blue-500"
+            :class="{ 'bg-blue-700 text-blue-100': !isSendDisabled, 'bg-gray-600 text-gray-400': isSendDisabled }"
             @click="sendMessage"
             :disabled="isSendDisabled"
-            :style="isSendDisabled ? disabledButtonStyle : {}"
           >
             Send
           </button>
@@ -80,13 +97,6 @@
     }
   });
 
-  const disabledButtonStyle = {
-    backgroundColor: '#1e3a8a', // darker blue
-    borderColor: '#3b82f6',
-    cursor: 'not-allowed',
-    opacity: '0.5',
-  };
-  
   const emit = defineEmits(['sendMessage']);
   
   const newMessage = ref('');

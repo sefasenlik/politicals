@@ -5,7 +5,7 @@
       <div class="max-w-md w-full p-8 bg-gray-900 rounded-lg shadow-lg border border-blue-900">
         <!-- Initial Options -->
         <div v-if="currentView === 'initial'" class="space-y-4">
-          <h1 class="text-2xl font-bold text-center text-green-400">Welcome to Spaceship Escape</h1>
+          <h1 class="text-2xl font-bold text-center text-green-400">Welcome to Spacecape</h1>
           <div class="mb-8 text-center">
             <div class="flex flex-col items-center gap-2">
               <span class="text-blue-400">
