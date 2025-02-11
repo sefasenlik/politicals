@@ -9,6 +9,7 @@ export function useGame() {
         room: {
             id: null,
             status: 'waiting', // 'waiting' | 'playing'
+            round: 'question', // 'question' | 'answer' | 'translation'
             players: {}
         }
     });
@@ -227,17 +228,6 @@ export function useGame() {
             type: 'START_GAME',
             playerNickname: playerNickname.value,
             roomId: gameState.value.room.id
-        }));
-
-        text = "The game has commenced. Convince the captain to pick you."
-        ws.send(JSON.stringify({
-            type: 'CHAT_MESSAGE',
-            payload: {
-                roomKey: gameState.value.room.id,
-                sender: "System",
-                text: text,
-                timestamp: new Date().toISOString()
-            }
         }));
     };
 

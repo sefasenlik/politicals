@@ -4,7 +4,7 @@ import { generateAIResponse } from '../ai-chat.js';
 const rooms = {} // Store our rooms
 const clients = {}  // Store client -> room mapping
 const clientIds = new WeakMap(); // Store client IDs
-const TRANSLATION_COUNTDOWN = 30000; // 30 seconds
+const TRANSLATION_COUNTDOWN = 10000; // 10 seconds
 
 function generateClientId() {
     return Math.random().toString(36).substring(7);
@@ -20,11 +20,11 @@ function createRoom(roomId) {
         room: {
             id: roomId,
             status: 'waiting',
+            round: 'question',
             players: {}
         },
         pendingMessages: {}, // Track messages from each player
-        translationTimer: null,
-        translationCountdown: 0
+        translationTimer: null
     };
 
     return true;
@@ -41,17 +41,35 @@ function startTranslationCountdown(roomId) {
 
     // Start a new countdown timer
     room.translationTimer = setTimeout(async () => {
-        await processPendingMessages(roomId);
-    }, TRANSLATION_COUNTDOWN);
-
-    // Broadcast countdown to all clients
-    broadcastToRoom(roomId, {
-        type: 'TRANSLATION_COUNTDOWN',
-        payload: {
-            countdown: TRANSLATION_COUNTDOWN / 1000, // convert to seconds
-            roomKey: roomId
+        // If we're in translation round, move to question round
+        if (room.room.round === 'translation') {
+            room.room.round = 'question';
+            broadcastToRoom(roomId, {
+                type: 'GAME_STATE',
+                payload: room
+            });
+            // Start next countdown
+            startTranslationCountdown(roomId);
+            return;
         }
-    });
+
+        // If we're in question round, move to answer round
+        if (room.room.round === 'question') {
+            room.room.round = 'answer';
+            broadcastToRoom(roomId, {
+                type: 'GAME_STATE',
+                payload: room
+            });
+            // Start next countdown
+            startTranslationCountdown(roomId);
+            return;
+        }
+
+        // If we're in answer round, process messages and move to translation
+        if (room.room.round === 'answer') {
+            await processPendingMessages(roomId);
+        }
+    }, TRANSLATION_COUNTDOWN);
 }
 
 // Add helper to process all pending messages
@@ -59,38 +77,63 @@ async function processPendingMessages(roomId) {
     const room = rooms[roomId];
     if (!room) return;
 
-    // Combine all messages
-    const allMessages = Object.values(room.pendingMessages).join('\n');
-    
-    try {
-        // const aiResponse = await generateAIResponse(allMessages);
-        const aiResponse = allMessages;
-        if (aiResponse) {
-            const aiMessageStr = JSON.stringify({
-                type: 'CHAT_MESSAGE',
-                payload: {
-                    roomKey: roomId,
-                    sender: "AI Translation",
-                    text: aiResponse,
-                    timestamp: Date.now()
-                }
-            });
+    // Only process if we're in the answer round
+    if (room.room.round !== 'answer') {
+        return;
+    }
 
-            // Broadcast AI response to all clients in the room
-            for (const [clientId, clientData] of Object.entries(clients)) {
-                if (clientData.room === roomId) {
-                    try {
-                        clientData.socket.send(aiMessageStr);
-                    } catch (error) {
-                        console.error('[WebSocket] Failed to send AI message to client:', error);
-                        removeClientFromRoom(clientData.socket, roomId);
+    try {
+        // If there are pending messages, process them
+        if (Object.keys(room.pendingMessages).length > 0) {
+            const allMessages = Object.values(room.pendingMessages).join('\n');
+            // const aiResponse = await generateAIResponse(allMessages);
+            const aiResponse = allMessages;
+            
+            if (aiResponse) {
+                const aiMessageStr = JSON.stringify({
+                    type: 'CHAT_MESSAGE',
+                    payload: {
+                        roomKey: roomId,
+                        sender: "AI Translation",
+                        text: aiResponse,
+                        timestamp: Date.now(),
+                        isPrivate: false
+                    }
+                });
+
+                // Broadcast AI response to all clients
+                for (const [clientId, clientData] of Object.entries(clients)) {
+                    if (clientData.room === roomId) {
+                        try {
+                            clientData.socket.send(aiMessageStr);
+                        } catch (error) {
+                            console.error('[WebSocket] Failed to send AI message to client:', error);
+                            removeClientFromRoom(clientData.socket, roomId);
+                        }
                     }
                 }
             }
         }
-        
-        // Clear pending messages after processing
+
+        // Clear pending messages
         room.pendingMessages = {};
+
+        // Reset hasSentMessage flag for all players
+        Object.values(room.room.players).forEach(player => {
+            player.hasSentMessage = false;
+        });
+
+        // Move to translation round
+        room.room.round = 'translation';
+        
+        // Broadcast the updated room state
+        broadcastToRoom(roomId, {
+            type: 'GAME_STATE',
+            payload: room
+        });
+
+        // Start the countdown for the next round
+        startTranslationCountdown(roomId);
     } catch (error) {
         console.error('[WebSocket] Error generating AI response:', error);
     }
@@ -180,29 +223,55 @@ export default defineWebSocketHandler({
                         return;
                     }
 
-                    // Store the message for this player
-                    room.pendingMessages[data.payload.sender] = data.payload.text;
+                    // Check if player has already sent a message this round
+                    if (player.hasSentMessage) {
+                        peer.send(JSON.stringify({
+                            type: 'ERROR',
+                            payload: 'You can only send one message per round'
+                        }));
+                        return;
+                    }
 
-                    // Broadcast chat message to all clients in the room
-                    const messageStr = JSON.stringify({
-                        type: 'CHAT_MESSAGE',
-                        payload: {
-                            roomKey: roomId,
-                            sender: data.payload.sender,
-                            text: data.payload.text,
-                            timestamp: data.payload.timestamp
-                        }
-                    });
+                    // Get host nickname (first player in the room)
+                    const [hostNickname] = Object.keys(room.room.players);
+                    const isHostMessage = data.payload.sender === hostNickname;
 
-                    for (const [clientId, clientData] of Object.entries(clients)) {
-                        if (clientData.room === roomId) {
-                            try {
-                                clientData.socket.send(messageStr);
-                            } catch (error) {
-                                console.error('[WebSocket] Failed to send chat message to client:', error);
-                                removeClientFromRoom(clientData.socket, roomId);
+                    // Mark that the player has sent a message this round
+                    player.hasSentMessage = true;
+
+                    // Create message payload
+                    const messagePayload = {
+                        roomKey: roomId,
+                        sender: data.payload.sender,
+                        text: data.payload.text,
+                        timestamp: data.payload.timestamp,
+                        isPrivate: !isHostMessage // Only non-host messages are private
+                    };
+
+                    if (isHostMessage) {
+                        // If host message, broadcast to all clients
+                        for (const [clientId, clientData] of Object.entries(clients)) {
+                            if (clientData.room === roomId) {
+                                try {
+                                    clientData.socket.send(JSON.stringify({
+                                        type: 'CHAT_MESSAGE',
+                                        payload: messagePayload
+                                    }));
+                                } catch (error) {
+                                    console.error('[WebSocket] Failed to send chat message to client:', error);
+                                    removeClientFromRoom(clientData.socket, roomId);
+                                }
                             }
                         }
+                    } else {
+                        // If non-host message, only send to sender and store for translation
+                        peer.send(JSON.stringify({
+                            type: 'CHAT_MESSAGE',
+                            payload: messagePayload
+                        }));
+                        
+                        // Store the message for translation
+                        room.pendingMessages[data.payload.sender] = data.payload.text;
                     }
 
                     break;
@@ -232,7 +301,8 @@ export default defineWebSocketHandler({
                     room.room.players[data.playerNickname] = {
                         nickname: data.playerNickname,
                         ready: true,
-                        clientId
+                        clientId,
+                        hasSentMessage: false
                     };
 
                     clients[clientId] = {
@@ -249,7 +319,6 @@ export default defineWebSocketHandler({
                     peer.send(JSON.stringify({
                         type: 'GAME_STATE',
                         payload: room
-
                     }));
                     break;
                 }
@@ -287,7 +356,8 @@ export default defineWebSocketHandler({
                     room.room.players[data.playerNickname] = {
                         nickname: data.playerNickname,
                         ready: false,
-                        clientId
+                        clientId,
+                        hasSentMessage: false
                     };
 
                     clients[clientId] = {
@@ -340,6 +410,30 @@ export default defineWebSocketHandler({
                             type: 'GAME_STATE',
                             payload: room
                         });
+                    }
+
+                    // System message is sent to all clients
+                    const messageStr = JSON.stringify({
+                        type: 'CHAT_MESSAGE',
+                        payload: {
+                            roomKey: roomId,
+                            sender: "System",
+                            text: "The game has commenced. Convince the captain to pick you.",
+                            timestamp: Date.now(),
+                            isPrivate: false
+                        }
+                    });
+                   
+                    // Send the system message to all clients
+                    for (const [clientId, clientData] of Object.entries(clients)) {
+                        if (clientData.room === roomId) {
+                            try {
+                                clientData.socket.send(messageStr);
+                            } catch (error) {
+                                console.error('[WebSocket] Failed to send chat message to client:', error);
+                                removeClientFromRoom(clientData.socket, roomId);
+                            }
+                        }
                     }
 
                     // Start translation countdown

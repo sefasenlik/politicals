@@ -1,17 +1,18 @@
 <!-- components/GameChat.vue -->
 <template>
-    <div class="h-[80vh] flex flex-col bg-white rounded-lg shadow-md">
+    <div class="h-[80vh] flex flex-col bg-gray-900/95 rounded-lg shadow-md border border-blue-900 relative z-10">
       <!-- Chat Messages Area -->
       <div class="flex-1 p-4 overflow-y-auto" ref="chatContainer">
-        <div v-for="(message, index) in messages" 
+        <div v-for="(message, index) in visibleMessages" 
              :key="index"
              class="mb-4"
              :class="message.sender === playerNickname ? 'text-right' : 'text-left'"
         >
           <div class="inline-block max-w-[80%] rounded-lg px-4 py-2"
-               :class="message.sender === playerNickname 
-                 ? 'bg-blue-500 text-white' 
-                 : 'bg-gray-100 text-gray-800'"
+               :class="message.sender === playerNickname ? 'bg-blue-700 text-blue-100 border border-blue-500' 
+                 : message.sender === 'System' ? 'bg-gray-800 text-green-400 border border-green-500'
+                 : message.sender === 'AI Translation' ? 'bg-purple-900 text-purple-100 border border-purple-500'
+                 : 'bg-gray-800 text-blue-100 border border-blue-900'"
           >
             <div class="text-sm font-semibold mb-1">
               {{ message.sender }}
@@ -27,19 +28,28 @@
       </div>
   
       <!-- Message Input -->
-      <div class="p-4 border-t">
+      <div class="p-4 border-t border-blue-900 bg-gray-900">
         <div class="flex gap-2">
           <input
             v-model="newMessage"
             type="text"
             placeholder="Type your message..."
-            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="flex-1 px-4 py-2 bg-gray-800 text-blue-100 border border-blue-900 rounded-lg 
+                   focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-blue-300
+                   relative z-10"
+            @keyup.enter="sendMessage"
+            :disabled="isSendDisabled"
           />
+
+          <!-- Send button -->
           <button
-            class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 
-                   transition-colors duration-200 focus:outline-none focus:ring-2 
-                   focus:ring-blue-500 focus:ring-offset-2"
+            class="px-6 py-2 bg-blue-700 text-blue-100 rounded-lg hover:bg-blue-600 
+                  transition-colors duration-200 focus:outline-none focus:ring-2 
+                  focus:ring-blue-500 focus:ring-offset-2 border border-blue-500
+                  relative z-10"
             @click="sendMessage"
+            :disabled="isSendDisabled"
+            :style="isSendDisabled ? disabledButtonStyle : {}"
           >
             Send
           </button>
@@ -49,7 +59,7 @@
   </template>
   
   <script setup>
-  import { ref, watch } from 'vue';
+  import { ref, watch, computed } from 'vue';
   
   const props = defineProps({
     playerNickname: {
@@ -63,13 +73,34 @@
     messages: {
       type: Array,
       required: true
+    },
+    isSendDisabled: {
+      type: Boolean,
+      required: true
     }
   });
+
+  const disabledButtonStyle = {
+    backgroundColor: '#1e3a8a', // darker blue
+    borderColor: '#3b82f6',
+    cursor: 'not-allowed',
+    opacity: '0.5',
+  };
   
   const emit = defineEmits(['sendMessage']);
   
   const newMessage = ref('');
   const chatContainer = ref(null);
+  
+  // Computed property to filter messages
+  const visibleMessages = computed(() => {
+    return props.messages.filter(message => 
+        !message.isPrivate || // Show non-private messages (AI Translation, System)
+        message.sender === props.playerNickname || // Show user's own messages
+        message.sender === 'System' || // Always show system messages
+        message.sender === 'AI Translation' // Always show AI translations
+    );
+  });
   
   // Send message
   const sendMessage = () => {
