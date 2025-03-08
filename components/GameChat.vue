@@ -10,9 +10,9 @@
             <b class="text-yellow-700">13.05.2998 – 03:23 AM</b><br>
             <i class="text-yellow-700">Somewhere between the galaxies of Shenlooq and Ossdemar</i>
 
-            <br><br>You are passenger GДß3424/05 aboard LITRAVEL Flight RØШ79003. A few hours ago, you were partying with other passengers. Now, you're jolted awake by violent tremors and a blaring alarm.
+            <br><br>You are passenger GДß3424/05 aboard LI-TRAVEL Flight RØШ79003. A few hours ago, you were partying with other passengers. Now, you're jolted awake by violent tremors and a blaring alarm.
 
-            <br><br>The ship's reactor has failed. In <b><i>15 minutes</i></b>, it will explode. Through flames and chaos, you manage to reach an escape pod. As you strap in, the pod's communication system crackles to life. This system, though rather primitive, can translate 8594 languages from 72 galaxies.
+            <br><br>The ship's reactor has failed. In <b><i>10 minutes</i></b>, it will explode. Through flames and chaos, you manage to reach an escape pod. As you strap in, the pod's communication system crackles to life. This system, though rather primitive, can translate 8594 languages from 72 galaxies.
 
             <br><br>The captain's voice echoes through the pod speakers:
             <i>"We don't have enough fuel. One pod must be left behind."</i>
@@ -31,14 +31,13 @@
           <div class="inline-block max-w-[80%] rounded-lg px-4 py-2"
                :class="message.sender === playerNickname ? 'bg-blue-700 text-blue-100 border border-blue-500' 
                  : message.sender === 'System' ? 'bg-gray-800 text-green-400 border border-green-500'
-                 : message.sender === 'AI Translation' ? 'bg-purple-900 text-purple-100 border border-purple-500'
+                 : message.sender === 'DigiTranslate 3000' ? 'bg-purple-900 text-purple-100 border border-purple-500'
                  : 'bg-gray-800 text-blue-100 border border-blue-900'"
           >
             <div class="text-sm font-semibold mb-1">
               {{ message.sender }}
             </div>
-            <div class="break-words">
-              {{ message.text }}
+            <div class="break-words" v-html="message.text">
             </div>
             <div class="text-xs opacity-75 mt-1">
               {{ formatTime(message.timestamp) }}
@@ -108,7 +107,7 @@
         !message.isPrivate || // Show non-private messages (AI Translation, System)
         message.sender === props.playerNickname || // Show user's own messages
         message.sender === 'System' || // Always show system messages
-        message.sender === 'AI Translation' // Always show AI translations
+        message.sender === 'DigiTranslate 3000' // Always show AI translations
     );
   });
   

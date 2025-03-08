@@ -1,11 +1,9 @@
 <!-- components/GameBoard.vue -->
 <template>
   <div class="relative min-h-screen bg-black overflow-hidden">
-    <!-- Animated Stars Background -->
-    <div class="stars-container">
-      <div id="stars"></div>
-      <div id="stars2"></div>
-      <div id="stars3"></div>
+    <!-- Rotating Stars Background -->
+    <div class="starfield-container">
+      <div class="starfield"></div>
     </div>
 
     <!-- Translation Countdown Timer -->
@@ -13,7 +11,53 @@
          class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
                 bg-blue-900/90 text-green-400 px-6 py-2 rounded-lg shadow-lg 
                 border border-blue-500">
-      <b> {{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round </b> • Ends in {{ translationCountdown }} second(s)...
+      <b> {{ gameState.room.round === 'answer' ? 'Answer' : gameState.room.round === 'question' ? 'Question' : 'Translation' }} Round </b> • Ends in {{ gameState.room.countdown }} second(s)... • Cycle {{ gameState.room.cycleCount + 1 }}/10
+    </div>
+
+    <!-- Game Completed Banner -->
+    <div v-if="gameState.room.status === 'completed'" 
+         class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 
+                bg-red-900/90 text-yellow-400 px-6 py-2 rounded-lg shadow-lg 
+                border border-red-500">
+      <b>Game Over!</b> The captain must now decide which pod(s) to leave behind.
+    </div>
+
+    <!-- Game Over Modal for Captain -->
+    <div v-if="gameState.room.status === 'completed' && isHost(playerNickname) && !captainDecisionMade" 
+         class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+      <div class="bg-gray-900 border border-red-500 rounded-lg p-6 max-w-2xl w-full mx-4">
+        <h2 class="text-2xl text-red-400 font-bold mb-4">Captain's Final Decision</h2>
+        <p class="text-blue-300 mb-6">
+          The reactor is about to explode. You must decide which passenger pod(s) to leave behind.
+          <br><br>
+          <b>Select {{ getFakePassengerCount() }} passenger(s) to leave behind:</b>
+        </p>
+        
+        <div class="space-y-3 mb-6">
+          <div v-for="i in 4" :key="i" class="flex items-center space-x-3 p-3 border border-blue-800 rounded-lg bg-gray-800/50">
+            <input 
+              type="checkbox" 
+              :id="'passenger-' + i" 
+              v-model="selectedPassengers[i-1]"
+              :disabled="selectedPassengerCount >= getFakePassengerCount() && !selectedPassengers[i-1]"
+              class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+            />
+            <label :for="'passenger-' + i" class="text-blue-300 flex-1">
+              <b>Passenger {{ i }}</b>
+            </label>
+          </div>
+        </div>
+        
+        <div class="flex justify-end space-x-4">
+          <button 
+            @click="submitCaptainDecision" 
+            :disabled="selectedPassengerCount !== getFakePassengerCount()"
+            class="px-6 py-2 bg-red-700 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Confirm Decision
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Main game content with padding for lobby -->
@@ -21,7 +65,9 @@
       <div class="max-w-4xl mx-auto">
         <!-- Header with room info -->
         <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold text-green-400">Spacecape</h1>
+          <h1 class="text-3xl font-bold">
+            <img src="/spacescape.png" alt="Spacescape Logo" class="h-10" />
+          </h1>
           
           <div class="flex items-center gap-4">            
             <div class="text-blue-400 relative z-10">
@@ -143,37 +189,42 @@ const {
   sendChatMessage
 } = inject('game');
 
-// Add a ref for the countdown
-const translationCountdown = ref(30);
-const countdownTimer = ref(null);
-
 // Add these refs for copy functionality
 const copyStatus = ref('Click to copy');
 
-// Watch for game status change to start the countdown
-watch(() => gameState.value.room.status, (newStatus) => {
-  if (newStatus === 'playing') {
-    // Reset countdown to 10 seconds
-    translationCountdown.value = 10;
-    
-    // Start countdown timer
-    countdownTimer.value = setInterval(() => {
-      translationCountdown.value--;
-      
-      // Stop timer when countdown reaches 0
-      if (translationCountdown.value <= 0) {
-        translationCountdown.value = 10;
-      }
-    }, 1000);
-  }
+// Add refs for captain's decision modal
+const selectedPassengers = ref([false, false, false, false]);
+const captainDecisionMade = ref(false);
+const selectedPassengerCount = computed(() => {
+  return selectedPassengers.value.filter(selected => selected).length;
 });
 
-// Optional: Clear interval if component is unmounted
-onUnmounted(() => {
-  if (countdownTimer.value) {
-    clearInterval(countdownTimer.value);
-  }
-});
+// Function to get the number of fake passengers (total - real)
+function getFakePassengerCount() {
+  // Count real passengers (excluding captain)
+  const realPlayerCount = Object.keys(gameState.value.room.players).length - 1;
+  // We always have 4 passengers total, so fake count is (4 - real)
+  return Math.max(0, 4 - realPlayerCount);
+}
+
+// Function to submit the captain's decision
+function submitCaptainDecision() {
+  const selectedIndices = [];
+  selectedPassengers.value.forEach((selected, index) => {
+    if (selected) {
+      selectedIndices.push(index + 1);
+    }
+  });
+  
+  // Create a decision message
+  const decisionMessage = `Captain's Decision: I have decided to leave behind Passenger${selectedIndices.length > 1 ? 's' : ''} ${selectedIndices.join(', ')}.`;
+  
+  // Send the message as the captain
+  sendChatMessage(decisionMessage);
+  
+  // Disable the modal after decision is made
+  captainDecisionMade.value = true;
+}
 
 // Chat handler
 const sendMessage = (text) => {
@@ -229,24 +280,56 @@ function onStartGame() {
   }
 }
 
-// Generate star shadows
+// Generate star background
 onMounted(() => {
-  const generateStars = (count, size) => {
-    let value = '';
-    for(let i = 0; i < count; i++) {
-      const x = Math.floor(Math.random() * window.innerWidth);
-      const y = Math.floor(Math.random() * window.innerHeight);
-      value += `${x}px ${y}px #FFF${i === count - 1 ? '' : ','}`;
-    }
-    return value;
-  };
-
-  // Generate and set star shadows
-  const root = document.documentElement;
-  root.style.setProperty('--stars-shadow-1', generateStars(700, 1));
-  root.style.setProperty('--stars-shadow-2', generateStars(200, 2));
-  root.style.setProperty('--stars-shadow-3', generateStars(100, 3));
+  createStarfield();
 });
+
+// Function to create a rotating starfield
+function createStarfield() {
+  const starfield = document.querySelector('.starfield');
+  if (!starfield) return;
+  
+  // Clear any existing stars
+  starfield.innerHTML = '';
+  
+  // Create stars
+  const starCount = 1200; 
+  const colors = ['#ffffff', '#fffafa', '#f8f8ff', '#e6e6fa', '#b0e0e6', '#87cefa', '#add8e6'];
+  
+  for (let i = 0; i < starCount; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    
+    // Random position - ensure stars are scattered across the entire screen
+    const x = Math.random() * window.innerWidth * 2;
+    const y = Math.random() * window.innerHeight * 2;
+    
+    // Random size (0.5px to 3px)
+    const size = 0.5 + Math.random() * 2.5;
+    
+    // Random color
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    
+    // Random opacity
+    const opacity = 0.5 + Math.random() * 0.5;
+    
+    // Apply styles directly to ensure proper positioning
+    star.style.cssText = `
+      position: absolute;
+      left: ${x}px;
+      top: ${y}px;
+      width: ${size}px;
+      height: ${size}px;
+      background-color: ${color};
+      opacity: ${opacity};
+      border-radius: 50%;
+      box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.4);
+    `;
+    
+    starfield.appendChild(star);
+  }
+}
 
 // Add copy function
 async function copyRoomKey() {
@@ -266,48 +349,32 @@ async function copyRoomKey() {
 </script>
 
 <style scoped>
-.stars-container {
+.starfield-container {
   position: fixed;
   top: 0;
   left: 0;
-  width: 150%;
-  height: 150%;
+  width: 100%;
+  height: 100%;
   z-index: 0;
+  overflow: hidden;
 }
 
-#stars {
-  width: 1px;
-  height: 1px;
-  background: transparent;
-  box-shadow: var(--stars-shadow-1);
-  animation: animateStars 300s linear infinite;
-  opacity: 0.5;
+.starfield {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  animation: rotate 240s linear infinite;
+  transform-origin: center center;
 }
 
-#stars2 {
-  width: 2px;
-  height: 2px;
-  background: transparent;
-  box-shadow: var(--stars-shadow-2);
-  animation: animateStars 600s linear infinite;
-  opacity: 0.5;
-}
-
-#stars3 {
-  width: 3px;
-  height: 3px;
-  background: transparent;
-  box-shadow: var(--stars-shadow-3);
-  animation: animateStars 900s linear infinite;
-  opacity: 0.5;
-}
-
-@keyframes animateStars {
+@keyframes rotate {
   from {
-    transform: translateY(0);
+    transform: rotate(0deg);
   }
   to {
-    transform: translateY(0);
+    transform: rotate(360deg);
   }
 }
 </style>

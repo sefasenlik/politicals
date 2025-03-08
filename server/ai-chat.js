@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-    apiKey: "PLEASE_DONATE",
+    apiKey: process.env.OPEN_AI_KEY,
 });
 
 export async function generateAIResponse(message) {
